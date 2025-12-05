@@ -56,7 +56,7 @@ def sweeping_cell1 ():
             conditional_cell1_movements.append((meu_Tello.left, go_left))
     
     if remainder > 0:
-        conditional_cell1_movements.append((meu_Tello.back, remainder + fov_by_2))
+        conditional_cell1_movements.append((meu_Tello.back, remainder + overlap))
         if (full_sweeps % 2) == 0:
             conditional_cell1_movements.append((meu_Tello.left, go_left))
         else:

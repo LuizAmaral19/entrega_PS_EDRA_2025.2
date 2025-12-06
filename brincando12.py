@@ -1,3 +1,16 @@
+#   -----------------------------------------------------------------------------
+#   Projeto:        Projeto Trainee - Processo Seletivo EDRA 2025.2
+#   Descrição:      O projeto do PS tem como objetivo a programação de um drone de treinamento simulado 
+#                   que deve percorrer um mapa de 400x400cm e coletar 5 tesouros distribuídos
+#                   aleatoriamente no mapa a cada execução do código e retornar ao ponto de início
+#                   após coletar todos os tesouros. Foi usada uma biblioteca TelloSim adaptada para
+#                   o PS, disponível no link: https://github.com/fabinsz/tello_sim_EDRA 
+#   Autor:          Luiz Henrique da Silva Amaral
+#   Data:           05/12/2025
+#   Contato:        luizhsamaral@gmail.com
+#   GitHub:         https://github.com/LuizAmaral19 
+#   -----------------------------------------------------------------------------
+
 from tello_sim_EDRA import Simulator
 
 meu_Tello = Simulator()
@@ -168,10 +181,12 @@ def sweeping_cell3():
 
     return conditional_cell3_movements
 
+
 movements_cell3 = [
     (meu_Tello.forward, lambda: abs(cell3_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
 ]
 movements_cell3.extend(sweeping_cell3())
+
 
 def move_and_check(drone, command, distance):
 

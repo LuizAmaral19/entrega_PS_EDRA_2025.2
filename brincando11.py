@@ -31,7 +31,7 @@ def sweeping_cell1 ():
 
     height_cell1 = global_usl - cell1_dsl
     step = fov_Tello
-    
+
     full_sweeps = int(height_cell1 // step)
     remainder = height_cell1 - (full_sweeps * step)
     
@@ -49,7 +49,7 @@ def sweeping_cell1 ():
 
     for c in range(full_sweeps -1):
         if (c % 2) == 0:
-            conditional_cell1_movements.append((meu_Tello.back, step)) # Talvez esteja errado aqui
+            conditional_cell1_movements.append((meu_Tello.back, step)) 
             conditional_cell1_movements.append((meu_Tello.right, go_right)) 
         else:
             conditional_cell1_movements.append((meu_Tello.back, step))
@@ -76,7 +76,49 @@ movements_cell1 = [
 movements_cell1.extend(sweeping_cell1())
 
 # Movimentos para a varredura da Célula II
+def sweeping_cell2():
+    conditional_cell2_movements = []
 
+    length_cell2 = abs(cell2_lsl) - abs(cell2_rsl)
+    step = fov_Tello
+
+    full_sweeps = int(length_cell2 // step)
+    remainder = length_cell2 - (full_sweeps * step)
+
+    def go_up():
+        return max(0.0, abs(cell2_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
+
+    def go_down():
+        return max(0.0, abs(global_dsl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
+
+    def go_right():
+        return max(0.0, abs(global_rsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)
+    
+    
+    for c in range(full_sweeps):
+        conditional_cell2_movements.append((meu_Tello.right, step))
+        if (c % 2) == 0:
+            conditional_cell2_movements.append((meu_Tello.forward, go_up))
+        else:
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+            
+    if remainder > 0:
+        conditional_cell2_movements.append((meu_Tello.right, remainder + overlap))
+        if (full_sweeps % 2) == 0:
+            conditional_cell2_movements.append((meu_Tello.forward, go_up))
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+        else:
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+    
+    conditional_cell2_movements.append((meu_Tello.right, go_right))
+
+    return conditional_cell2_movements
+
+
+movements_cell2 = []
+movements_cell2.extend(sweeping_cell2())
 
 
 # Movimentos para a varredura da Célula III
@@ -114,14 +156,17 @@ def area_coverage():
 
     while True:
         stop_and_go_home = False
-        go_next_cell = False
         for command, distance in movements_cell1:
             if move_and_check(meu_Tello, command, distance) == 0: 
                 stop_and_go_home = True
                 break
-            elif go_next_cell == True:
+        # meu_Tello.land()
+        for command, distance in movements_cell2:
+            if move_and_check(meu_Tello, command, distance) == 0:
+                stop_and_go_home = True
                 break
         meu_Tello.land()
+        print('EU PAREI QUANDO NÃO DEVIA')
         if stop_and_go_home == True:
             break
 

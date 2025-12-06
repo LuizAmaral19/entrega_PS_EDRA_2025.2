@@ -13,7 +13,7 @@ class Simulator():
         self.takeoff_alt = 81
         self.field_limit = 200
         self.num_treasures = 5
-        self.vision_range = 70  # visão do drone em cm
+        self.vision_range = 60  # visão do drone em cm
         self._init_state()
         self.driver_instance = None
         self.command()

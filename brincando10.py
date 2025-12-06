@@ -2,135 +2,229 @@ from tello_sim_EDRA import Simulator
 
 meu_Tello = Simulator()
 
-# --- parâmetros ---
-fov_Tello  = meu_Tello.vision_range
-fov_by_2   = fov_Tello / 2.0
-overlap    = 5.0
+fov_Tello = meu_Tello.vision_range  # Diâmetro do Field Of Vision
+fov_by_2 = meu_Tello.vision_range/2 # Raio do Field Of Vision 
+overlap = 5                         # Overlap para garantir que todo o campo seja varrido
 
-# Coordenadas globais (com nomes corrigidos)
-global_rsl = meu_Tello.field_limit   # right
-global_usl = meu_Tello.field_limit   # up
-global_lsl = -meu_Tello.field_limit  # left
-global_dsl = -meu_Tello.field_limit  # down
+# Coordenadas Globais
+global_rsl = meu_Tello.field_limit   # Global Right Side Limit
+global_usl = meu_Tello.field_limit   # Global Left Side Limit
+global_lsl = -meu_Tello.field_limit  # Global Upper Side Limit
+global_dsl = -meu_Tello.field_limit  # Global Down Side Limit
 
-# Exemplo de células (ajuste se necessário)
-cell1_rsl = meu_Tello.field_limit - fov_Tello   # limite direito da célula 1
-cell1_dsl = -fov_by_2                           # limite inferior da célula 1
+# Coordenadas úteis de cada célula
+cell1_rsl = meu_Tello.field_limit - fov_Tello   # Cell 1 Right Side Limit
+cell1_dsl = fov_by_2                            # Cell 1 Down Side Limit
 
-# -------------------------
-# Função que gera o zig-zag de cobertura para a célula 1
-# -------------------------
+cell2_rsl = -fov_by_2                           # Cell 2 Right Side Limit
+cell2_usl = fov_by_2                            # Cell 2 Upper Side Limit
+cell2_lsl = -meu_Tello.field_limit + fov_Tello  # Cell 2 Left Side Limit
+
+cell3_rsl = global_rsl - fov_Tello              # Cell 3 Right Side Limit
+cell3_usl = -fov_by_2                           # Cell 3 Upper Side Limit
+cell3_lsl = fov_by_2                            # Cell 3 Left Side Limit
+cell3_dsl = -meu_Tello.field_limit + fov_Tello  # Cell 3 Down Side Limit
+
+
+# Movimentos para a varredura da Célula I
 def sweeping_cell1():
-    movements = []
+    conditional_cell1_movements = []
 
-    # dimensão vertical da região a varrer (de cima até a base da célula)
-    height = global_usl - cell1_dsl
+    height_cell1 = global_usl - cell1_dsl
     step = fov_Tello
 
-    # quantos passos inteiros cabem e se há parte fracionária
-    full_sweeps = int(height // step)        # número de passos inteiros (floor)
-    remainder = height - full_sweeps * step  # sobra (pode ser 0)
-
-    # helpers para calcular distância horizontal no momento da execução
-    def horizontal_right():
+    full_sweeps = int(height_cell1 // step)
+    remainder = height_cell1 - (full_sweeps * step)
+    
+    def go_right():
         return max(0.0, abs(cell1_rsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)
+    
 
-    def horizontal_left():
+    def go_left():
         return max(0.0, abs(global_lsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)
 
-    # Construir zig-zag: (back step) + (horizontal move) repetido
-    # Note: se full_sweeps for 0, não adicionamos nada
-    for i in range(full_sweeps):
-        # passo vertical (descer)
-        movements.append((meu_Tello.back, (lambda s=step: s)))
-        # passo horizontal alternado
-        if i % 2 == 0:
-            movements.append((meu_Tello.right, horizontal_right))
+
+    def go_cell2():
+        return max(0.0, abs(global_dsl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+
+
+    for c in range(full_sweeps -1):
+        if (c % 2) == 0:
+            conditional_cell1_movements.append((meu_Tello.back, step)) 
+            conditional_cell1_movements.append((meu_Tello.right, go_right)) 
         else:
-            movements.append((meu_Tello.left, horizontal_left))
-
-    # se existir resto, desce o resto e faz o movimento horizontal final
-    if remainder > 1e-6:
-        movements.append((meu_Tello.back, (lambda r=remainder: r)))
-        # direção do movimento final depende da paridade dos passos já feitos
-        if full_sweeps % 2 == 0:
-            movements.append((meu_Tello.right, horizontal_right))
+            conditional_cell1_movements.append((meu_Tello.back, step))
+            conditional_cell1_movements.append((meu_Tello.left, go_left))
+    
+    if remainder > 0:
+        conditional_cell1_movements.append((meu_Tello.back, remainder + overlap))
+        if (full_sweeps % 2) == 0:
+            conditional_cell1_movements.append((meu_Tello.left, go_left))
         else:
-            movements.append((meu_Tello.left, horizontal_left))
+            conditional_cell1_movements.append((meu_Tello.right, go_right))
+            conditional_cell1_movements.append((meu_Tello.left, go_left))
 
-    return movements
+    conditional_cell1_movements.append((meu_Tello.back, go_cell2))
 
-# -------------------------
-# Movimentos iniciais (posição de entrada na célula)
-# -------------------------
+    return conditional_cell1_movements
+
+
 movements_cell1 = [
-    (meu_Tello.right, lambda: max(0.0, abs(global_rsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)),
-    (meu_Tello.forward, lambda: max(0.0, abs(global_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)),
-    (meu_Tello.left, lambda: max(0.0, abs(global_lsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)),
+    (meu_Tello.right, lambda: (abs(global_rsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)),
+    (meu_Tello.forward, lambda: (abs(global_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)),
+    (meu_Tello.left, lambda: (abs(global_lsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)),
 ]
-
-# anexar corretamente a lista retornada por sweeping_cell1 (não append!)
 movements_cell1.extend(sweeping_cell1())
 
-# -------------------------
-# Função que executa movimentos em passos do tamanho do FOV
-# e checa a cada passo se todos os tesouros foram coletados.
-# Retorna True se terminou (pegou todos); False caso contrário.
-# -------------------------
-def move_and_check(drone, command, distance_or_fn):
-    # obtém distância numérica (se for callable, chama)
-    distance = distance_or_fn() if callable(distance_or_fn) else distance_or_fn
+# Movimentos para a varredura da Célula II
+def sweeping_cell2():
+    conditional_cell2_movements = []
 
-    # protege contra distâncias negativas/zero
-    if distance is None or distance <= 1e-6:
-        return False
-
+    length_cell2 = abs(cell2_lsl) - abs(cell2_rsl)
     step = fov_Tello
-    full_steps = int(distance // step)
-    remainder = distance - full_steps * step
 
-    # passos inteiros
-    for _ in range(full_steps):
-        command(step)
-        # checar se terminou
-        if len(drone.visited_treasures) >= len(drone.treasures):
-            return True
+    full_sweeps = int(length_cell2 // step)
+    remainder = length_cell2 - (full_sweeps * step)
 
-    # passo final (resto)
-    if remainder > 1e-6:
-        command(remainder)
-        if len(drone.visited_treasures) >= len(drone.treasures):
-            return True
+    def go_up():
+        return max(0.0, abs(cell2_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
 
-    return False
+    def go_down():
+        return max(0.0, abs(global_dsl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
 
-# -------------------------
-# go_home simplificado
-# -------------------------
+    def go_cell3():
+        return max(0.0, abs(global_rsl - meu_Tello.cur_loc[0]) - fov_by_2 + overlap)
+    
+    
+    for c in range(full_sweeps):
+        conditional_cell2_movements.append((meu_Tello.right, step))
+        if (c % 2) == 0:
+            conditional_cell2_movements.append((meu_Tello.forward, go_up))
+        else:
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+
+    if remainder > 0:
+        conditional_cell2_movements.append((meu_Tello.right, remainder + overlap))
+        if (full_sweeps % 2) == 0:
+            conditional_cell2_movements.append((meu_Tello.forward, go_up))
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+        else:
+            conditional_cell2_movements.append((meu_Tello.back, go_down))
+    
+    conditional_cell2_movements.append((meu_Tello.right, go_cell3))
+
+    return conditional_cell2_movements
+
+
+movements_cell2 = []
+movements_cell2.extend(sweeping_cell2())
+
+# Movimentos para a varredura da Célula III
+def sweeping_cell3():
+    conditional_cell3_movements = []
+
+    length_cell3 = abs(global_rsl) + abs(cell3_lsl)
+    step = fov_Tello
+
+    full_sweeps = int(length_cell3 // step)
+    remainder = length_cell3 - (full_sweeps * step)
+
+    def go_up():
+        return max(0.0, abs(cell3_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
+
+    def go_down():
+        return max(0.0, abs(cell3_dsl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+    
+
+    def go_center_x():
+        return max(0.0, abs(0 - meu_Tello.cur_loc[0]))
+
+
+    def go_center_y():
+        return max(0.0, abs(0 - meu_Tello.cur_loc[1]))
+    
+
+    for c in range(full_sweeps):
+        conditional_cell3_movements.append((meu_Tello.left, step))
+        if (c % 2) == 0:
+            conditional_cell3_movements.append((meu_Tello.back, go_down))
+        else:
+            conditional_cell3_movements.append((meu_Tello.forward, go_up))
+    
+    if remainder > 0:
+        conditional_cell3_movements.append((meu_Tello.left, remainder + overlap))
+        if (full_sweeps % 2) == 0:
+            conditional_cell3_movements.append((meu_Tello.back, go_down))
+            conditional_cell3_movements.append((meu_Tello.forward, go_up))
+        else:
+            conditional_cell3_movements.append((meu_Tello.forward, go_up))
+
+    conditional_cell3_movements.append((meu_Tello.forward, go_center_y))
+    conditional_cell3_movements.append((meu_Tello.left, go_center_x))
+
+    return conditional_cell3_movements
+
+movements_cell3 = [
+    (meu_Tello.forward, lambda: abs(cell3_usl - meu_Tello.cur_loc[1]) - fov_by_2 + overlap)
+]
+movements_cell3.extend(sweeping_cell3())
+
+def move_and_check(drone, command, distance):
+
+    if callable(distance):
+        distance = distance()
+    qntty_steps = distance/fov_Tello
+    for c in range (0, int(qntty_steps)):
+        command(fov_Tello)
+        if (len(drone.visited_treasures) - len(drone.treasures)) == 0:
+            return 0
+    command((qntty_steps % 1) * fov_Tello)
+    if (len(drone.visited_treasures) - len(drone.treasures)) == 0:
+        return 0
+    
+
 def go_home():
-    x, y = meu_Tello.cur_loc
-    # mover em y
-    if y > 0:
-        meu_Tello.back(y)
-    elif y < 0:
-        meu_Tello.forward(-y)
-    # mover em x
-    if x > 0:
-        meu_Tello.left(x)
-    elif x < 0:
-        meu_Tello.right(-x)
+    current_x, current_y = meu_Tello.cur_loc
+    if current_x >=0:
+        meu_Tello.left(current_x)
+    else:
+        meu_Tello.right(-current_x)
+    if current_y >= 0:
+        meu_Tello.back(current_y)
+    else:
+        meu_Tello.forward(-current_y)
     meu_Tello.land()
 
-# -------------------------
-# rotina principal
-# -------------------------
+
 def area_coverage():
+
     meu_Tello.takeoff()
-    for command, dist_fn in movements_cell1:
-        finished = move_and_check(meu_Tello, command, dist_fn)
-        if finished:
+
+    while True:
+        stop_and_go_home = False
+        for command, distance in movements_cell1:
+            if move_and_check(meu_Tello, command, distance) == 0: 
+                stop_and_go_home = True
+                break
+        if stop_and_go_home == True:
             break
 
-# executar
+        for command, distance in movements_cell2:
+            if move_and_check(meu_Tello, command, distance) == 0:
+                stop_and_go_home = True
+                break
+        if stop_and_go_home == True:
+            break
+
+        for command, distance in movements_cell3:
+            if move_and_check(meu_Tello, command, distance) == 0:
+                stop_and_go_home = True
+                break
+        if stop_and_go_home == True:
+            break
+
 area_coverage()
 go_home()
